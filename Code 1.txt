@@ -239,3 +239,619 @@ void emptyUsersFile() {
 }
 
 };
+
+// Define the Product class to represent individual items in inventory
+class Product {
+private:
+    string id; // unique identifier for the product
+    string name; // name of the product
+    double quantity; // current quantity of the product in stock
+    double price; // price of the product per unit
+    string currencyCode;
+
+public:
+    Product() : id(""), name(""), quantity(0), price(0), currencyCode("") {}
+     /*Product(string productId, string productName, double productPrice, string currencyCode = "")
+    : id(productId), name(productName), quantity(0), price(productPrice), currencyCode(currencyCode) {}*/
+    // Constructor to initialize the object
+    Product(string productId, string productName, double productPrice, string currencyCode, double quantity = 0) {
+        id = productId;
+        name = productName;
+        price = productPrice;
+        this->currencyCode = currencyCode;
+        this->quantity = quantity; // initialize the quantity member variable with the input value
+    }
+ /*   // Constructor to initialize the object
+    Product(string productId, string productName, double productPrice, string currencyCode) {
+        id = productId;
+        name = productName;
+        price = productPrice;
+        this->currencyCode = currencyCode;
+    }
+    // Constructor with parameters
+    Product(string productId, string productName, double productPrice)
+    : id(productId), name(productName), quantity(0), price(productPrice), currencyCode("") {}*/
+
+
+    // Getter and setter methods for all instance variables
+    string getId() const { return id; }
+    void setId(string id) { this->id = id; }
+    string getName() const { return name; }
+    void setName(string name) { this->name = name; }
+    double getQuantity() const { return quantity; }
+    void setQuantity(double quantity) { this->quantity = quantity; }
+    double getPrice() const { return price; }
+    void setPrice(double newPrice)  {price = newPrice;}
+    string getCurrencyCode() const { return currencyCode; }
+    void setCurrencyCode(string currency) { this->currencyCode = currency; }
+
+    // Method to add a specified quantity of the product to the inventory
+    // Returns true if the operation was successful, false otherwise
+    bool addProduct(double quantityToAdd) {
+        if (quantityToAdd > 0) { // Check if the quantity being added is valid
+            quantity += quantityToAdd;
+            return true;
+        }
+        return false;
+    }
+
+    // Method to remove a specified quantity of the product from the inventory
+    // Returns true if the operation was successful, false otherwise
+    bool removeProduct(double quantityToRemove) {
+        if (quantityToRemove > 0 && quantity >= quantityToRemove) { // Check if the quantity being removed is valid
+            quantity -= quantityToRemove;
+            return true;
+        }
+        return false;
+    }
+
+    // Method to update the price of the product
+    // Returns true if the operation was successful, false otherwise
+    bool updatePrice(double newPrice, string newCurrencyCode, const CurrencyConverter& converter) {
+        if (newPrice > 0 && converter.addExchangeRate(currencyCode, newCurrencyCode, converter.getExchangeRate(currencyCode, newCurrencyCode))) { // Check if the new price and currency code are valid
+            price = converter.convert(newPrice, newCurrencyCode, currencyCode);
+            currencyCode = newCurrencyCode;
+            return true;
+        }
+        return false;
+    }
+
+  /*  void newprice(const CurrencyConverter& converter)  {
+        price = converter.convert(price, currencyCode, converter.getBaseCurrencyCode());
+    }*/
+
+    // Method to display the details of the product
+    void displayDetails(const CurrencyConverter& converter) {
+        cout << "Product ID: " << id << endl;
+        cout << "Product Name: " << name << endl;
+        cout << "Quantity in Stock: " << quantity << endl;
+        //double* convertedPrice = new double;
+        //*convertedPrice=converter.convert(price, currencyCode, converter.getBaseCurrencyCode());
+        double convertedPrice = converter.convert(price, currencyCode, converter.getBaseCurrencyCode());
+        //price = converter.convert(price, currencyCode, converter.getBaseCurrencyCode());
+        cout << "Price per Unit (in " << converter.getBaseCurrencyCode() << "): " << convertedPrice << endl;
+
+    }
+
+    void writeToFile(ofstream& fout) const {
+        fout << id << " " << name << " " << quantity << " " << price << " " << currencyCode << endl;
+    }
+
+    void readFromFile(istringstream& iss) {
+    iss >> id >> name >> quantity >> price >> currencyCode;
+    }
+};
+
+class Inventory {
+private:
+    vector<Product> products; // Vector to hold all products in inventory
+
+public:
+
+    // Method to get a product by ID from the inventory
+// Returns a Product object with the given ID, or a null Product object if the product is not found
+const Product& getProductById(const string& productId) const {
+    // Search for the product with the given ID
+    auto it = find_if(products.begin(), products.end(), [&](const Product& p) { return p.getId() == productId; });
+    if (it != products.end()) {
+        return *it;
+    } else {
+        // Product not found, return a null Product object
+        static Product nullProduct; // Return a static null Product object by reference
+        return nullProduct;
+    }
+}
+    // Method to add a new product to the inventory
+    // Returns true if the operation was successful, false otherwise
+    bool addProduct(Product newProduct) {
+        // Check if the product already exists in the inventory
+        for (const auto& product : products) {
+            if (product.getId() == newProduct.getId()) {
+                return false; // Product already exists, return false
+            }
+        }
+
+        products.push_back(newProduct); // Add the new product
+        return true; // Operation was successful, return true
+    }
+
+    // Method to remove an existing product from the inventory
+    // Returns true if the operation was successful, false otherwise
+    bool removeProduct(string productId) {
+        // Search for the product with the given ID
+        for (auto it = products.begin(); it != products.end(); ++it) {
+            if (it->getId() == productId) {
+                products.erase(it); // Remove the product
+                return true; // Operation was successful, return true
+            }
+        }
+
+        return false; // Product not found, return false
+    }
+
+    // Method to update the quantity of an existing product in the inventory
+    // Returns true if the operation was successful, false otherwise
+    bool updateProductQuantity(string productId, double newQuantity) {
+        // Search for the product with the given ID
+        for (auto& product : products) {
+            if (product.getId() == productId) {
+                product.setQuantity(newQuantity); // Update the product quantity
+                return true; // Operation was successful, return true
+            }
+        }
+
+        return false; // Product not found, return false
+    }
+
+    // Method to update the price of an existing product in the inventory
+    // Returns true if the operation was successful, false otherwise
+    bool updateProductPrice(string productId, double newPrice) {
+        // Search for the product with the given ID
+        for (auto& product : products) {
+            if (product.getId() == productId) {
+                product.setPrice(newPrice); // Update the product price
+                return true; // Operation was successful, return true
+            }
+        }
+
+        return false; // Product not found, return false
+    }
+
+    // Method to display the details of all products in the inventory
+    void displayAllProducts(const CurrencyConverter& converter) {
+        if (products.empty()) {
+            cout << "Inventory is empty" << endl;
+        } else {
+            cout << "Inventory:" << endl;
+            for ( auto& product : products) {
+                    product.displayDetails(converter); // Pass the currency converter object to the displayDetails method
+                    //product.newprice(converter);
+            }
+        }
+    }
+
+    // Method to display the details of a specific product in the inventory
+    void displayProductDetails(string productId, const CurrencyConverter& converter)  {
+        // Search for the product with the given ID
+        for ( auto& product : products) {
+            if (product.getId() == productId) {
+                product.displayDetails(converter); // Pass the currency converter object to the displayDetails method
+                return;
+            }
+        }
+
+        cout << "Product not found" << endl;
+    }
+    // Method to get a product by ID from the inventory
+    // Returns a Product object with the given ID, or a null Product object if the product is not found
+    Product getProductById(string productId) {
+        // Search for the product with the given ID
+        for (const auto& product : products) {
+            if (product.getId() == productId) {
+                return product; // Return the product object
+            }
+        }
+
+        // Product not found, return a null Product object
+        return Product();
+    }
+        // Getter method for the products vector
+    const vector<Product>& getProducts() const {
+        return products;
+    }
+};
+// Define the Customer class to represent individual customers
+class CustomerManager; // Forward declaration
+class Customer {
+private:
+    string id; // unique identifier for the customer
+    string name; // name of the customer
+    double balance; // current balance of the customer
+    string currencyCode;
+    string contactInfo;
+
+public:
+    // Default constructor
+    Customer() {}
+
+    // Constructor with 4 arguments to set the initial values for the instance variables
+    Customer(string id, string name, double balance, string currencyCode) {
+        this->id = id;
+        this->name = name;
+        this->balance = balance;
+        this->currencyCode = currencyCode;
+    }
+
+    // Constructor with 5 arguments to set the initial values for the instance variables
+    Customer(string id, string name, double balance, string currencyCode, string contactInfo) {
+        this->id = id;
+        this->name = name;
+        this->balance = balance;
+        this->currencyCode = currencyCode;
+        this->contactInfo = contactInfo;
+    }
+
+    // Getter and setter methods for all instance variables
+    string getId() const { return id; }
+    void setId(string id) { this->id = id; }
+    string getName() const { return name; }
+    void setName(string name) { this->name = name; }
+    double getBalance() const { return balance; }
+    void setBalance(double balance) { this->balance = balance; }
+    string getCurrencyCode() const { return currencyCode; }
+    void setCurrencyCode(string code) { this->currencyCode = code; }
+    string getContactInfo() const { return contactInfo; }
+    void setContactInfo(string info) { this->contactInfo = info; }
+
+    // Method to add a specified amount to the customer's balance
+    void addBalance(double amountToAdd) { balance += amountToAdd; }
+
+    // Method to remove a specified amount from the customer's balance
+    // Returns true if the operation was successful, false otherwise
+    bool removeBalance(double amountToRemove) {
+        if (balance < amountToRemove)
+            return false;
+        balance -= amountToRemove;
+        return true;
+    }
+
+    // Method to display the details of the customer
+    void displayCustomerDetails() const {
+        cout << "ID: " << id << endl;
+        cout << "Name: " << name << endl;
+        cout << "Balance: " << balance << endl;
+        cout << "Currency Code: " << currencyCode << endl;
+        cout << "Contact Info: " << contactInfo << endl;
+    }
+
+    // Method to write the customer information to a file
+    void writeToFile(ofstream& fout) const {
+        fout << id << " " << name << " " << balance << " " << currencyCode << " " << contactInfo << endl;
+    }
+
+    // Method to read the customer information from a file
+    void readFromFile(ifstream& fin) {
+        fin >> id >> name >> balance >> currencyCode >> contactInfo;
+    }
+
+    // Overload the >> operator to enable reading from a stream
+    friend istream& operator>>(istream& in, Customer& customer) {
+        in >> customer.id >> customer.name >> customer.balance >> customer.currencyCode >> customer.contactInfo;
+        return in;
+    }
+};
+// Define the Order class to represent individual orders placed by customers
+class Order {
+private:
+    string id; // unique identifier for the order
+    string customerId; // identifier for the customer who placed the order
+    vector<Product> products; // vector to hold all products in the order
+    double totalPrice; // total price of the order
+    string totalCurrencyCode; // currency code for the order's total price
+
+public:
+    // Default constructor that initializes member variables to default values
+    Order() : id(""), customerId(""), products(vector<Product>()), totalPrice(0.0), totalCurrencyCode("") {}
+    //Constructor
+    Order(Product product, Customer customer, double quantity) {
+        this->id = to_string(generateOrderId2()); // Generate a unique order ID and convert it to a string
+        this->customerId = customer.getId();
+        this->addProduct(product, quantity);
+        this->calculateTotalPrice();
+        this->totalCurrencyCode = product.getCurrencyCode();
+    }
+    // Getter and setter methods for all instance variables
+    string getId() { return id; }
+    void setId(string id) { this->id = id; }
+    string getCustomerId() { return customerId; }
+    void setCustomerId(string customerId) { this->customerId = customerId; }
+    vector<Product> getProducts() { return products; }
+    void setProducts(vector<Product> products) { this->products = products; }
+    double getTotalPrice() { return totalPrice; }
+    void setTotalPrice(double totalPrice) { this->totalPrice = totalPrice; }
+    string getTotalCurrencyCode() { return totalCurrencyCode; }
+    void setTotalCurrencyCode(string currencyCode) { this->totalCurrencyCode = currencyCode; }
+
+    // Method to calculate the total price of the order based on the products and their quantities
+    void calculateTotalPrice() {
+        totalPrice = 0;
+        for (int i = 0; i < products.size(); i++) {
+            totalPrice += products[i].getPrice() * products[i].getQuantity();
+        }
+    }
+
+    // Method to add a product with a specified quantity to the order
+    // Returns true if the operation was successful, false otherwise
+    bool addProduct(Product productToAdd, double quantityToAdd) {
+        for (int i = 0; i < products.size(); i++) {
+            if (products[i].getId() == productToAdd.getId()) {
+                products[i].setQuantity(products[i].getQuantity() + quantityToAdd);
+                return true;
+            }
+        }
+        productToAdd.setQuantity(quantityToAdd);
+        products.push_back(productToAdd);
+        return true;
+    }
+
+    // Method to remove a product from the order
+    // Returns true if the operation was successful, false otherwise
+    bool removeProduct(string productId) {
+        for (int i = 0; i < products.size(); i++) {
+            if (products[i].getId() == productId) {
+                products.erase(products.begin() + i);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // Method to display the details of the order
+    void displayDetails() {
+        cout << "Order ID: " << id << endl;
+        cout << "Customer ID: " << customerId << endl;
+        cout << "Products:" << endl;
+        for (int i = 0; i < products.size(); i++) {
+            cout << "- " << products[i].getName() << ": " << fixed << setprecision(2) << products[i].getQuantity() << " (" << products[i].getPrice() << "$ per unit)" << endl;
+        }
+        cout << "Total Price: " << fixed << setprecision(2) << totalPrice << " " << totalCurrencyCode << endl;
+    }
+};
+// Define the InventoryManager class to manage interactions with the inventory
+class InventoryManager {
+private:
+    Inventory inventory; // instance of the Inventory class to manage product collection
+    string currencyCode;
+    vector<Customer> customers;
+
+public:
+    InventoryManager() : customers() {}
+
+    // Method to get a product by ID from the inventory
+    const Product* getProductById(string productId) const {
+        for (const auto& product : inventory.getProducts()) {
+            if (product.getId() == productId) {
+                return &product;
+            }
+        }
+        return nullptr;
+    }
+
+    // Method to add a new product to the inventory
+    // Calls the addProduct method of the Inventory class
+    bool addProduct(Product newProduct) {
+        return inventory.addProduct(newProduct);
+    }
+
+    // Method to remove an existing product from the inventory
+    // Calls the removeProduct method of the Inventory class
+    bool removeProduct(string productId) {
+        return inventory.removeProduct(productId);
+    }
+
+    // Method to update the quantity of an existing product in the inventory
+    // Calls the updateProductQuantity method of the Inventory class
+    bool updateProductQuantity(string productId, double newQuantity) {
+        return inventory.updateProductQuantity(productId, newQuantity);
+    }
+
+    // Method to update the price of an existing product in the inventory
+    // Calls the updateProductPrice method of the Inventory class
+    bool updateProductPrice(string productId, double newPrice) {
+        return inventory.updateProductPrice(productId, newPrice);
+    }
+
+    // Method to display the details of all products in the inventory
+    void displayAllProducts(const CurrencyConverter& converter) {
+        inventory.displayAllProducts(converter); // Pass the currency converter object to the displayAllProducts method
+    }
+
+    // Method to display the details of all customers
+    void displayAllCustomers(const CurrencyConverter& currencyConverter) const {
+        string currencyCode;
+        cout << "Enter currency code: ";
+        cin >> currencyCode;
+
+        cout << left << setw(10) << "ID" << setw(20) << "Name" << setw(15) << "Balance (" << currencyCode << ")" << endl;
+        for (const Customer& customer : customers) {
+            double balanceInSelectedCurrency = customer.getBalance() * currencyConverter.getExchangeRate(customer.getCurrencyCode(), currencyCode);
+            cout << left << setw(10) << customer.getId() << setw(20) << customer.getName() << setw(15) << balanceInSelectedCurrency << endl;
+        }
+    }
+
+    // Method to display the details of a specific product in the inventory
+    // Calls the displayProductDetails method of the Inventory class
+void displayProductDetails(string productId, const CurrencyConverter& converter)  {
+    inventory.displayProductDetails(productId, converter); // Pass the currency converter object to the displayProductDetails method
+}
+
+    // Method to save product information to a file
+    void saveProductsToFile() {
+        ofstream outFile("products.txt");
+        if (outFile.is_open()) {
+            const auto& products = inventory.getProducts();
+            for (const auto& product : products) {
+                product.writeToFile(outFile);
+            }
+            outFile.close();
+        } else {
+            cout << "Unable to open file" << endl;
+        }
+    }
+
+    // Method to load product information from a file
+    void loadProductsFromFile() {
+        ifstream inFile("products.txt");
+        if (inFile.is_open()) {
+            string line;
+            while (getline(inFile, line)) {
+                istringstream iss(line);
+                Product product;
+                product.readFromFile(iss);
+                inventory.addProduct(product);
+            }
+            inFile.close();
+        } else {
+            cout << "Unable to open file" << endl;
+        }
+    }
+
+    // Empty the products file
+    void emptyProductsFile() {
+        std::ofstream productsFile("products.txt");
+        productsFile << ""; // Write an empty string to the file
+        productsFile.close();
+    }
+
+};
+
+
+// Define the CustomerManager class to manage interactions with customers
+class CustomerManager {
+private:
+vector<Customer> customers; // vector to hold all customers
+string currencyCode;
+
+public:
+    CustomerManager() : customers() {}
+string getCurrencyCode() const { return currencyCode; }
+// Method to add a new customer to the collection
+    // Returns true if the operation was successful, false otherwise
+    bool addCustomer(Customer newCustomer) {
+        // Check if the customer already exists
+        for (int i = 0; i < customers.size(); i++) {
+            if (customers[i].getId() == newCustomer.getId()) {
+                return false;
+            }
+        }
+
+        customers.push_back(newCustomer);
+        return true;
+    }
+
+// Method to remove an existing customer from the collection
+// Returns true if the operation was successful, false otherwise
+bool removeCustomer(string customerId) {
+    for (int i = 0; i < customers.size(); i++) {
+        if (customers[i].getId() == customerId) {
+            customers.erase(customers.begin() + i);
+            return true;
+        }
+    }
+    return false;
+}
+
+// Method to update the balance of an existing customer
+// Calls the addBalance or removeBalance method of the Customer class
+// Returns true if the operation was successful, false otherwise
+bool updateCustomerBalance(string id, double newBalance, CurrencyConverter& currencyConverter) {
+    Customer* customer = getCustomerById(id);
+    if (customer == nullptr) {
+        return false;
+    }
+
+    // Convert new balance to customer's individual currency
+    double exchangeRate = currencyConverter.getExchangeRate(currencyConverter.getBaseCurrencyCode(), customer->getCurrencyCode());
+    double newBalanceInCustomerCurrency = newBalance * exchangeRate;
+
+    // Add new balance to existing balance
+    double currentBalanceInCustomerCurrency = customer->getBalance();
+    double updatedBalanceInCustomerCurrency = currentBalanceInCustomerCurrency + newBalanceInCustomerCurrency;
+
+    customer->setBalance(updatedBalanceInCustomerCurrency);
+    return true;
+}
+// Method to display the details of all customers
+void displayAllCustomers(CurrencyConverter& currencyConverter) {
+    string currencyCode;
+    cout << "Enter currency code: ";
+    cin >> currencyCode;
+
+    cout << left << setw(10) << "ID" << setw(20) << "Name" << setw(15) << "Balance (" << currencyCode << ")" << endl;
+    for (const Customer& customer : customers) {
+        double balanceInSelectedCurrency = customer.getBalance() * currencyConverter.getExchangeRate(customer.getCurrencyCode(), currencyCode);
+        cout << left << setw(10) << customer.getId() << setw(20) << customer.getName() << setw(15) << balanceInSelectedCurrency << endl;
+    }
+}
+
+// Method to display the details of a specific customer
+void displayCustomerDetails(string customerId) {
+    for (int i = 0; i < customers.size(); i++) {
+        if (customers[i].getId() == customerId) {
+            customers[i].displayCustomerDetails();
+            return;
+        }
+    }
+}
+// Method to save customer information to a file
+    void saveCustomersToFile() {
+        ofstream file("customers.txt");
+        if (file.is_open()) {
+            for (int i = 0; i < customers.size(); i++) {
+                customers[i].writeToFile(file);
+            }
+            file.close();
+        } else {
+            cout << "Unable to open file for writing." << endl;
+        }
+    }
+
+    // Method to load customer information from a file
+void loadCustomersFromFile() {
+    ifstream file("customers.txt");
+    if (file.is_open()) {
+        string line;
+        while (getline(file, line)) {
+            Customer customer;
+            istringstream iss(line);
+            iss >> customer;
+            addCustomer(customer);
+        }
+        file.close();
+        cout << "Customers loaded successfully." << endl;
+    } else {
+        cout << "Unable to open file for reading." << endl;
+    }
+}
+// Method to get a pointer to a customer with a given ID
+// Returns a pointer to the Customer object if found, nullptr otherwise
+Customer* getCustomerById(string customerId) {
+    for (int i = 0; i < customers.size(); i++) {
+        if (customers[i].getId() == customerId) {
+            return &customers[i];
+        }
+    }
+    return nullptr;
+}
+
+// Empty the customers file
+void emptyCustomersFile() {
+    std::ofstream customersFile("customers.txt");
+    customersFile << ""; // Write an empty string to the file
+    customersFile.close();
+}
+
+};
+
+// Define the OrderManager class to manage interactions with orders
+class OrderManager {
