@@ -1,0 +1,241 @@
+#include <iostream>
+#include <fstream>
+#include <vector>
+#include <unordered_map>
+#include <cmath>
+#include <string>
+#include <sstream>
+#include <fstream>
+#include <iomanip>
+#include <unordered_map>
+#include <algorithm>
+
+using namespace std;
+
+class CurrencyConverter {
+private:
+    mutable unordered_map<string, double> exchangeRates;
+    string baseCurrencyCode = "USD";
+
+public:
+    CurrencyConverter() {
+        // Initialize exchange rates
+        exchangeRates["USD"] = 1.0;
+        exchangeRates["EUR"] = 0.85;
+        exchangeRates["IRR"] = 42105.0;
+    }
+
+    double getExchangeRate(string fromCurrency, string toCurrency) const {
+        return exchangeRates.at(toCurrency) / exchangeRates.at(fromCurrency);
+    }
+
+    void updateExchangeRate(string currency, double rate) const {
+        exchangeRates[currency] = rate;
+    }
+
+    void addCurrency(string currency, double rate) const {
+        exchangeRates[currency] = rate;
+    }
+
+    double convert(double amount, string fromCurrency, string toCurrency) const {
+        return amount * (exchangeRates.at(toCurrency) / exchangeRates.at(fromCurrency));
+    }
+
+    void displayAllExchangeRates() const {
+        for (auto const& pair: exchangeRates) {
+            cout << pair.first << ": " << pair.second << endl;
+        }
+    }
+
+    bool addExchangeRate(string fromCurrency, string toCurrency, double rate) const {
+        // Check if the exchange rate already exists
+        if (exchangeRates.find(fromCurrency) == exchangeRates.end() ||
+            exchangeRates[fromCurrency] == 0 ||
+            exchangeRates.find(toCurrency) == exchangeRates.end() ||
+            exchangeRates[toCurrency] == 0) {
+            return false;
+        }
+
+        // Add the new exchange rate
+        exchangeRates[toCurrency] = rate / exchangeRates[fromCurrency];
+        return true;
+    }
+
+    bool removeExchangeRate(string fromCurrency, string toCurrency) const {
+        // Check if the exchange rate exists
+        if (exchangeRates.find(fromCurrency) == exchangeRates.end() ||
+            exchangeRates[fromCurrency] == 0 ||
+            exchangeRates.find(toCurrency) == exchangeRates.end() ||
+            exchangeRates[toCurrency] == 0) {
+            return false;
+        }
+
+        // Remove the exchange rate
+        exchangeRates.erase(toCurrency);
+        return true;
+    }
+
+    bool updateExchangeRate(string fromCurrency, string toCurrency, double newRate) const {
+        // Check if the exchange rate already exists
+        if (exchangeRates.find(fromCurrency) == exchangeRates.end() ||
+            exchangeRates.at(fromCurrency) == 0 ||
+            exchangeRates.find(toCurrency) == exchangeRates.end() ||
+            exchangeRates.at(toCurrency) == 0) {
+            return false;
+        }
+
+        // Update the exchange rate
+        exchangeRates.at(toCurrency) = newRate / exchangeRates.at(fromCurrency);
+        return true;
+    }
+
+    string getBaseCurrencyCode() const {
+        return baseCurrencyCode;
+    }
+};
+
+int generateOrderId()
+{
+    static int orderNumber = 0; // Static variable to keep track of the current order number
+    orderNumber++; // Increment the order number for each new order
+
+    return orderNumber;
+}
+
+int generateOrderId2()
+{
+    static int orderNumber = 0; // Static variable to keep track of the current order number
+    orderNumber++; // Increment the order number for each new order
+
+    return orderNumber;
+}
+// Define the User class to represent individual users
+class User {
+private:
+string username; // unique username for the user
+string password; // password for the user
+
+public:
+
+User() : username(""), password("") {}
+
+// Constructor to initialize the object
+User(string username, string password) {
+    this->username = username;
+    this->password = password;
+}
+
+// Getter and setter methods for username and password
+string getUsername() const {
+return username;
+}
+
+void setUsername(const string& newUsername) {
+    username = newUsername;
+}
+
+string getPassword() const {
+    return password;
+}
+
+void setPassword(const string& newPassword) {
+    password = newPassword;
+}
+
+void writeToFile(ofstream& fout) const {
+    fout << username << " " << password << endl;
+}
+
+void readFromFile(ifstream& fin) {
+    fin >> username >> password;
+}
+
+};
+
+// Define the LoginManager class to manage user authentication and authorization
+class LoginManager {
+private:
+vector<User> users; // vector to hold all registered users
+User* currentUser; // pointer to the current user who is logged in
+
+public:
+
+User* getCurrentUser() const {
+    return currentUser;
+}
+// Method to register a new user
+bool registerUser(User newUser){
+    for (const auto& user : users) {
+            if (user.getUsername() == newUser.getUsername()) {
+                return false; // username already exists
+            }
+        }
+
+        users.push_back(newUser);
+        return true; // registration successful
+};
+
+// Method to authenticate a user and log them in
+// Returns true if the user is authenticated and logged in, false otherwise
+bool loginUser(string username, string password) {
+    for (auto& user : users) {
+        if (user.getUsername() == username && user.getPassword() == password) {
+            currentUser = &user;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+// Method to log out the current user
+void logoutUser() {
+    currentUser = nullptr;
+}
+
+// Method to check if a user is currently logged in
+// Returns true if a user is logged in, false otherwise
+bool isLoggedIn() const {
+    return currentUser != nullptr;
+}
+
+void saveUsersToFile() {
+    ofstream fout("users.txt");
+    if (!fout.is_open()) {
+        cerr << "Failed to open file!" << endl;
+        return;
+    }
+
+    for (const auto& user : users) {
+        user.writeToFile(fout);
+    }
+
+    fout.close();
+}
+
+void loadUsersFromFile() {
+    ifstream fin("users.txt");
+    if (!fin.is_open()) {
+        cerr << "Failed to open file!" << endl;
+        return;
+    }
+
+    while (fin.good()) {
+        User newUser;
+        newUser.readFromFile(fin);
+        if (!fin.fail()) {
+            users.push_back(newUser);
+        }
+    }
+
+    fin.close();
+}
+
+// Empty the users file
+void emptyUsersFile() {
+    std::ofstream usersFile("users.txt");
+    usersFile << ""; // Write an empty string to the file
+    usersFile.close();
+}
+
+};
