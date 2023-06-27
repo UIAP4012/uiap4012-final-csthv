@@ -855,3 +855,720 @@ void emptyCustomersFile() {
 
 // Define the OrderManager class to manage interactions with orders
 class OrderManager {
+private:
+    vector<Order> orders; // vector to hold all orders
+    string ordersFilePath; // path to the file where orders will be saved and loaded
+
+public:
+    // Constructor that sets the path to the orders file
+    OrderManager(string ordersFilePath) : ordersFilePath(ordersFilePath) {}
+
+    // Method to place a new order for a specific customer
+    // Calls the addProduct and calculateTotalPrice methods of the Order class
+    // Decreases the quantity of each ordered product in the inventory
+bool placeOrder(string customerId, vector<Product> products, vector<double> quantities, string currencyCode, CurrencyConverter& currencyConverter) {
+    if (products.size() != quantities.size()) {
+        cout << "Error: The number of products and quantities must be the same." << endl;
+        return false;
+    }
+    Order newOrder;
+    newOrder.setId(to_string(orders.size() + 1));
+    newOrder.setCustomerId(customerId);
+    for (int i = 0; i < products.size(); i++) {
+        // Convert product price to customer currency if necessary
+        if (products[i].getCurrencyCode() != currencyCode) {
+            double exchangeRate = currencyConverter.getExchangeRate(products[i].getCurrencyCode(), currencyCode);
+            double convertedPrice = products[i].getPrice() * exchangeRate;
+            products[i].setPrice(convertedPrice);
+            products[i].setCurrencyCode(currencyCode);
+        }
+        newOrder.addProduct(products[i], quantities[i]);
+    }
+    newOrder.calculateTotalPrice();
+    // Convert total price to customer currency if necessary
+    if (newOrder.getTotalCurrencyCode() != currencyCode) {
+        double exchangeRate = currencyConverter.getExchangeRate(newOrder.getTotalCurrencyCode(), currencyCode);
+        double convertedPrice = newOrder.getTotalPrice() * exchangeRate;
+        newOrder.setTotalPrice(convertedPrice);
+        newOrder.setTotalCurrencyCode(currencyCode);
+    }
+    orders.push_back(newOrder);
+
+    // Save the updated orders to file
+    saveOrdersToFile();
+
+    // Return true to indicate that the order was placed successfully
+    return true;
+}
+
+    // Method to place a new order
+    bool placeOrder(Order order) {
+        orders.push_back(order);
+
+        // Save the updated orders to file
+        saveOrdersToFile();
+
+        return true;
+    }
+
+    // Method to remove an existing order from the collection
+    // Returns true if the operation was successful, false otherwise
+    bool removeOrder(string id, CustomerManager& customerManager, CurrencyConverter& currencyConverter) {
+        for (int i = 0; i < orders.size(); i++) {
+            if (orders[i].getId() == id) {
+                // Retrieve the order's customer ID and total price before it is removed
+                string customerId = orders[i].getCustomerId();
+                double totalPrice = -(orders[i].getTotalPrice());
+
+                // Remove the order from the orders vector
+                orders.erase(orders.begin() + i);
+
+                // Save the updated order list to file
+                saveOrdersToFile();
+
+                // Update the customer's balance by adding back the total price of the removed order
+                bool success = customerManager.updateCustomerBalance(customerId, totalPrice, currencyConverter);
+                if (!success) {
+                    cout << "Error: Unable to update customer balance." << endl;
+                }
+
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // Method to display the details of all orders
+    void displayAllOrders() {
+        for (int i = 0; i < orders.size(); i++) {
+            orders[i].displayDetails();
+            cout << endl;
+        }
+    }
+
+    // Method to display the details of a specific order
+    void displayOrderDetails(string orderId) {
+        for (int i = 0; i < orders.size(); i++) {
+            if (orders[i].getId() == orderId) {
+                orders[i].displayDetails();
+                return;
+            }
+        }
+    }
+
+    // Method to save the orders to file
+void saveOrdersToFile() {
+    ofstream ordersFile(ordersFilePath);
+    if (ordersFile.is_open()) {
+        for (int i = 0; i < orders.size(); i++) {
+            Order currentOrder = orders[i];
+            ordersFile << currentOrder.getId() << "," << currentOrder.getCustomerId() << ",";
+            vector<Product> products = currentOrder.getProducts();
+            for (int j = 0; j < products.size(); j++) {
+                Product currentProduct = products[j];
+                ordersFile << currentProduct.getId() << ":" << currentProduct.getName() << ":" << currentProduct.getPrice() << ":" << currentProduct.getCurrencyCode() << ":" << currentProduct.getQuantity() << ",";
+            }
+            ordersFile << currentOrder.getTotalPrice() << "," << currentOrder.getTotalCurrencyCode() << endl;
+        }
+        ordersFile.close();
+    } else {
+        cout << "Error: Unable to open orders file." << endl;
+    }
+}
+
+// Method to load the orders from file
+void loadOrdersFromFile() {
+    ifstream ordersFile(ordersFilePath);
+    if (ordersFile.is_open()) {
+        string line;
+        while (getline(ordersFile, line)) {
+            vector<string> tokens = split(line, ',');
+
+            // Create a new order object and set its ID and customer ID
+            Order newOrder;
+            newOrder.setId(tokens[0]);
+            newOrder.setCustomerId(tokens[1]);
+
+            // Add products to the order
+            vector<Product> products;
+            vector<double> quantities;
+            for (int i = 2; i < tokens.size() - 2; i++) {
+                vector<string> productTokens = split(tokens[i], ':');
+                string productId = productTokens[0];
+                string productName = productTokens[1];
+                double productPrice = stod(productTokens[2]);
+                string currencyCode = productTokens[3];
+                double quantity = stod(productTokens[4]);
+                Product product(productId, productName, productPrice, currencyCode);
+                products.push_back(product);
+                quantities.push_back(quantity);
+            }
+            newOrder.setProducts(products);
+            for (int i = 0; i < products.size(); i++) {
+                newOrder.addProduct(products[i], quantities[i]);
+            }
+
+            // Set the total price and currency code of the order
+            double totalPrice = stod(tokens[tokens.size() - 2]);
+            string totalCurrencyCode = tokens[tokens.size() - 1];
+            newOrder.setTotalPrice(totalPrice);
+            newOrder.setTotalCurrencyCode(totalCurrencyCode);
+
+            orders.push_back(newOrder);
+        }
+    }
+    ordersFile.close();
+}
+
+// Helper method to split a string into a vector of tokens based on a delimiter
+static vector<string> split(string str, char delimiter) {
+    vector<string> tokens;
+    stringstream ss(str);
+    string token;
+    while (getline(ss, token, delimiter)) {
+        tokens.push_back(token);
+    }
+    return tokens;
+}
+
+void emptyOrdersFile() {
+    std::ofstream ordersFile("orders.txt");
+    ordersFile << ""; // Write an empty string to the file
+    ordersFile.close();
+}
+
+};
+/*
+Order OrderManager::getOrderById(string orderId) {
+    for (int i = 0; i < orders.size(); i++) {
+        if (orders[i].getId() == orderId) {
+            return orders[i];
+        }
+    }
+    // If no order with the given ID was found, return an empty order
+    return Order();
+}
+
+void OrderManager::listOrders() {
+    cout << "List of Orders:" << endl;
+    for (int i = 0; i < orders.size(); i++) {
+        cout << "ID: " << orders[i].getId() << endl;
+        cout << "Customer ID: " << orders[i].getCustomerId() << endl;
+        cout << "Products:" << endl;
+        vector<Product> products = orders[i].getProducts();
+        vector<double> quantities = orders[i].getQuantities();
+        for (int j = 0; j < products.size(); j++) {
+            cout << "  " << products[j].getName() << " (" << quantities[j] << ")" << endl;
+        }
+        cout << "Total Price: " << orders[i].getTotalPrice() << " " << orders[i].getTotalCurrencyCode() << endl;
+    }
+}
+*/
+
+/*
+    // Empty the users file
+void loginManager::emptyUsersFile() {
+    std::ofstream usersFile("users.txt");
+    usersFile << ""; // Write an empty string to the file
+    usersFile.close();
+}
+
+// Empty the products file
+void inventoryManager::emptyProductsFile() {
+    std::ofstream productsFile("products.txt");
+    productsFile << ""; // Write an empty string to the file
+    productsFile.close();
+}
+
+// Empty the customers file
+void customerManager::emptyCustomersFile() {
+    std::ofstream customersFile("customers.txt");
+    customersFile << ""; // Write an empty string to the file
+    customersFile.close();
+}
+
+// Empty the orders file
+void orderManager::emptyOrdersFile() {
+    std::ofstream ordersFile("orders.txt");
+    ordersFile << ""; // Write an empty string to the file
+    ordersFile.close();
+}
+
+*/
+
+
+// Define the main function for the program
+int main() {
+    LoginManager loginManager;
+    InventoryManager inventoryManager;
+    CustomerManager customerManager;
+    //OrderManager orderManager;
+    Inventory inventory;
+    CurrencyConverter currencyConverter;
+
+    // Set up the OrderManager with the path to the orders file
+    OrderManager orderManager("orders.txt");
+
+    // Load existing orders from file (if any)
+    orderManager.loadOrdersFromFile();
+
+    // Load data from files
+    loginManager.loadUsersFromFile();
+    inventoryManager.loadProductsFromFile();
+    customerManager.loadCustomersFromFile();
+
+
+    bool running = true;
+    while (running) {
+
+        // Prompt the user to log in or register as a new user
+        cout << "Welcome to the Inventory Management System. Please choose an option:\n";
+        cout << "1. Log in\n";
+        cout << "2. Register\n";
+        cout << "3. Manage currency exchange rates\n";
+        cout << "4. Exit\n";
+
+        int choice;
+        cin >> choice;
+
+        if (choice == 1) {
+            // Prompt the user for their username and password and authenticate them
+            string username, password;
+            cout << "Please enter your username: ";
+            cin >> username;
+            cout << "Please enter your password: ";
+            cin >> password;
+
+            bool authenticated = loginManager.loginUser(username, password);
+            if (authenticated) {
+                // If the user logs in successfully, set the currentUser pointer in the LoginManager to the logged in user
+                User* currentUser = loginManager.getCurrentUser();
+                cout << "Login successful. Welcome, " << currentUser->getUsername() << "!\n";
+
+                // Use the currentUser pointer to determine authorization for certain actions throughout the program
+                while (true) {
+                    system("cls");
+                    // Display the details of all products in the inventory
+                    inventoryManager.displayAllProducts(currencyConverter);
+
+                    // Display the details of all customers
+                    CurrencyConverter converter;
+                    customerManager.displayAllCustomers(converter);
+                    cout << "\nWhat would you like to do?\n";
+                    cout << "1. View products\n";
+                    cout << "2. Add product\n";
+                    cout << "3. Remove product\n";
+                    cout << "4. Update product quantity\n";
+                    cout << "5. Update product price\n";
+                    cout << "6. View customers\n";
+                    cout << "7. Add customer\n";
+                    cout << "8. Remove customer\n";
+                    cout << "9. Update customer balance\n";
+                    cout << "10. Place order\n";
+                    cout << "11. View orders\n";
+                    cout << "12. Remove order\n";
+                    cout << "13. Delete Users and Products and Customers save states\n";
+                    cout << "14. Delete Orders save states\n";
+                    cout << "15. Delete Users save states\n";
+                    cout << "16. Delete all save states\n";
+                    cout << "17. Log out\n";
+
+                    int choice;
+                    cin >> choice;
+
+                    if (choice == 1) {
+                        // Display the details of all products in the inventory
+                        inventoryManager.displayAllProducts(currencyConverter);
+                    }
+                    else if (choice == 2) {
+                        // Prompt the user for information about the new product and add it to the inventory
+                        string id, name, currency;
+                        double price, quantity;
+                        cout << "Please enter the ID of the new product: ";
+                        cin >> id;
+                        cout << "Please enter the name of the new product: ";
+                        cin >> name;
+                        cout << "Please enter the currency code of the new product: ";
+                        cin >> currency;
+                        cout << "Please enter the price of the new product: ";
+                        cin >> price;
+                        cout << "Please enter the quantity of the new product: ";
+                        cin >> quantity;
+
+                        // Create a new Product object with the user input values
+                        Product newProduct = Product(id, name, price, currency, quantity);
+
+                        // Add the new product to the inventory and display a success/failure message
+                        bool added = inventoryManager.addProduct(newProduct);
+                        if (added) {
+                            cout << "Product " << id << " added successfully.\n";
+                        }
+                        else {
+                            cout << "Product " << id << " could not be added.\n";
+                        }
+                    }
+                    else if (choice == 3) {
+                        // Prompt the user for the ID of the product to remove and remove it from the inventory
+                        string id;
+                        cout << "Please enter the ID of the product to remove: ";
+                        cin >> id;
+
+                        bool removed = inventoryManager.removeProduct(id);
+                        if (removed) {
+                            cout << "Product " << id << " removed successfully.\n";
+                        }
+                        else {
+                            cout << "Product " << id << " could not be removed.\n";
+                        }
+                    }
+                    else if (choice == 4) {
+                        // Prompt the user for the ID of the product and the new quantity, and update the quantity of the product in the inventory
+                        string id;
+                        double newQuantity;
+                        cout << "Please enter the ID of the product to update: ";
+                        cin >> id;
+                        cout << "Please enter the new quantity: ";
+                        cin >> newQuantity;
+
+                        bool updated = inventoryManager.updateProductQuantity(id, newQuantity);
+                        if (updated) {
+                            cout << "Product " << id<< " quantity updated successfully.\n";
+}
+else {
+cout << "Product " << id << " quantity could not be updated.\n";
+}
+}
+else if (choice == 5) {
+// Prompt the user for the ID of the product and the new price, and update the price of the product in the inventory
+string id;
+double newPrice;
+cout << "Please enter the ID of the product to update: ";
+cin >> id;
+cout << "Please enter the new price: ";
+cin >> newPrice;
+
+                    bool updated = inventoryManager.updateProductPrice(id, newPrice);
+                    if (updated) {
+                        cout << "Product " << id << " price updated successfully.\n";
+                    }
+                    else {
+                        cout << "Product " << id << " price could not be updated.\n";
+                    }
+                }
+                else if (choice == 6) {
+                    // Display the details of all customers
+                    customerManager.displayAllCustomers(converter);
+                }
+                else if (choice == 7) {
+                // Prompt the user for information about the new customer and add them to the list of customers
+                    string name, contactInfo, currencyCode;
+                    double balance;
+                    cout << "Please enter the name of the new customer: ";
+                    cin >> name;
+                    cout << "Please enter the contact information of the new customer: ";
+                    cin >> contactInfo;
+                    cout << "Please enter the starting balance of the new customer: ";
+                    cin >> balance;
+                    cout << "Please enter the currency code for the new customer: ";
+                    cin >> currencyCode;
+                    int customerId = generateOrderId();
+                    string customerIdStr = to_string(customerId);
+                    Customer newCustomer(customerIdStr, name, balance, currencyCode);
+                    bool added = customerManager.addCustomer(newCustomer);
+                    if (added) {
+                        cout << "Customer " << name << " added successfully.\n";
+                    }
+                    else {
+                        cout << "Customer " << name << " could not be added.\n";
+                    }
+                }
+                else if (choice == 8) {
+                    // Prompt the user for the ID of the customer to remove and remove them from the list of customers
+                    string id;
+                    cout << "Please enter the ID of the customer to remove: ";
+                    cin >> id;
+
+                    bool removed = customerManager.removeCustomer(id);
+                    if (removed) {
+                        cout << "Customer " << id << " removed successfully.\n";
+                    }
+                    else {
+                        cout << "Customer " << id << " could not be removed.\n";
+                    }
+                }
+                else if (choice == 9) {
+                    // Prompt the user for the ID of the customer and the new balance, and update the balance of the customer
+                    string id;
+                    double newBalance;
+                    cout << "Please enter the ID of the customer to update: ";
+                    cin >> id;
+                    cout << "Please enter the new balance: ";
+                    cin >> newBalance;
+
+                    bool updated = customerManager.updateCustomerBalance(id, newBalance, currencyConverter);
+                    if (updated) {
+                        cout << "Customer " << id << " balance updated successfully.\n";
+                    }
+                    else {
+                        cout << "Customer " << id << " balance could not be updated.\n";
+                    }
+                }
+                else if (choice == 10) {
+                // Prompt the user for information about the order and place it
+                string customerId, productId;
+                double quantity;
+                cout << "Please enter the ID of the customer placing the order: ";
+                cin >> customerId;
+                cout << "Please enter the ID of the product being ordered: ";
+                cin >> productId;
+                cout << "Please enter the quantity of the product being ordered: ";
+                cin >> quantity;
+
+                // Check if the product is available in sufficient quantity
+                const Product* product = inventoryManager.getProductById(productId);
+                if (product != nullptr && product->getQuantity() >= quantity) {
+                    // Create a new Customer object
+                    Customer* customer = customerManager.getCustomerById(customerId);
+                    if (customer == nullptr) {
+                        cout << "Customer not found." << endl;
+                    }
+                    else {               //converter.convert(product->getPrice(), currencyCode, converter.getBaseCurrencyCode())
+                        // Create a new Product object and place the order
+                        //Product orderedProduct = Product(product->getId(), product->getName(), product->getPrice(), product->getCurrencyCode());
+                        Product orderedProduct = Product(product->getId(), product->getName(), converter.convert(product->getPrice(), customer->getCurrencyCode(), converter.getBaseCurrencyCode()) , product->getCurrencyCode());
+                        Order newOrder = Order(orderedProduct, *customer, quantity);
+                        bool placed = orderManager.placeOrder(newOrder);
+
+                        if (placed) {
+                            cout << "Order placed successfully. Thank you for your purchase!\n";
+
+                            // Update the inventory and customer balance
+                            inventoryManager.updateProductQuantity(productId, product->getQuantity() - quantity);
+
+                            // Pass the CurrencyConverter object as the third argument to updateCustomerBalance()
+                            customerManager.updateCustomerBalance(customerId, (product->getPrice() * quantity), currencyConverter);
+                        }
+                        else {
+                            cout << "Order could not be placed.\n";
+                        }
+                    }
+                }
+                else {
+                    cout << "Product not available in sufficient quantity.\n";
+                }
+            }
+                else if (choice == 11) {
+                    system("cls");
+                    // Display the details of all orders
+                    orderManager.displayAllOrders();
+                    // Wait for user input before clearing the console
+                    cout << "\nPress any key to continue...";
+                    cin.ignore();
+                    cin.get();
+                }
+                else if (choice == 12) {
+                    system("cls");
+                    // Load the orders from file to ensure the list is up-to-date
+                    orderManager.loadOrdersFromFile();
+                    // Prompt the user for the ID of the order to remove and remove it from the list of orders
+                    string id;
+                    cout << "Please enter the ID of the order to remove: ";
+                    cin >> id;
+                    bool removed = orderManager.removeOrder(id, customerManager, currencyConverter);
+                    if (removed) {
+                        cout << "Order " << id << " removed successfully.\n";
+                    }
+                    else {
+                        cout << "Order " << id << " could not be removed.\n";
+                    }
+                    cout << "\nPress any key to continue...";
+                    cin.ignore();
+                    cin.get();
+                }
+                else if (choice == 13) {
+                    loginManager.emptyUsersFile();        // Clears users.txt
+                    inventoryManager.emptyProductsFile();     // Clears products.txt
+                    customerManager.emptyCustomersFile() ;    // Clears customers.txt
+
+                    // Load existing orders from file (if any)
+                    orderManager.loadOrdersFromFile();
+                    // Load data from files
+                    loginManager.loadUsersFromFile();
+                    inventoryManager.loadProductsFromFile();
+                    customerManager.loadCustomersFromFile();
+
+                }
+                else if (choice == 14) {
+                    orderManager.emptyOrdersFile();       // Clears orders.txt
+
+                    // Load existing orders from file (if any)
+                    orderManager.loadOrdersFromFile();
+                }
+                else if (choice == 15) {
+                    loginManager.emptyUsersFile();        // Clears users.txt
+                    loginManager.loadUsersFromFile();
+
+                }
+                else if (choice == 16) {
+                    loginManager.emptyUsersFile();        // Clears users.txt
+                    inventoryManager.emptyProductsFile();      // Clears products.txt
+                    customerManager.emptyCustomersFile() ;    // Clears customers.txt
+                    orderManager.emptyOrdersFile();       // Clears orders.txt
+
+                    // Load existing orders from file (if any)
+                    orderManager.loadOrdersFromFile();
+                    // Load data from files
+                    loginManager.loadUsersFromFile();
+                    inventoryManager.loadProductsFromFile();
+                    customerManager.loadCustomersFromFile();
+
+                }
+                else if (choice == 17) {
+                    // Log out the current user
+                    loginManager.logoutUser();
+                    break;
+                }
+                else {
+
+// If the user enters an invalid choice, display an error message
+                    cout << "Invalid choice. Please try again.\n";
+                }
+            }
+        }
+        else {
+            cout << "Login failed. Incorrect username or password.\n";
+        }
+    }
+    else if (choice == 2) {
+        // Prompt the user for information about the new user and add them to the list of users
+        string username, password;
+        cout << "Please enter a username: ";
+        cin >> username;
+        cout << "Please enter a password: ";
+        cin >> password;
+
+        User newUser = User(username, password);
+
+        bool added = loginManager.registerUser(newUser);
+        if (added) {
+            cout << "User " << username << " registered successfully.\n";
+        }
+        else {
+            cout << "User " << username << " could not be registered.\n";
+        }
+    }
+    else if (choice == 3)
+{
+    while(true)
+    {
+        system("cls");
+        cout << "Welcome to the currency exchange rate manager. Please select an option:\n";
+        cout << "1. View all exchange rates\n";
+        cout << "2. Add a currency\n";
+        cout << "3. Add an exchange rate\n";
+        cout << "4. Remove an exchange rate\n";
+        cout << "5. Update an exchange rate\n";
+        cout << "6. Return to main menu\n";
+
+        int currency_choice;
+        cin >> currency_choice;
+
+        if (currency_choice == 1){
+            currencyConverter.displayAllExchangeRates();
+        } else if(currency_choice == 2){
+            string new_currency;
+            double new_rate;
+            cout << "Please enter the name of the new currency: ";
+            cin >> new_currency;
+            cout << "Please enter the exchange rate of the new currency relative to USD: ";
+            cin >> new_rate;
+
+            currencyConverter.addCurrency(new_currency, new_rate);
+            cout << "New currency added successfully.\n";
+
+        } else if(currency_choice == 3){
+            string base_currency, target_currency;
+            double exchange_rate;
+            cout << "Please enter the base currency: ";
+            cin >> base_currency;
+            cout << "Please enter the target currency: ";
+            cin >> target_currency;
+            cout << "Please enter the exchange rate: ";
+            cin >> exchange_rate;
+
+            bool added = currencyConverter.addExchangeRate(base_currency, target_currency, exchange_rate);
+            if (added) {
+                cout << "Exchange rate added successfully.\n";
+            }
+            else {
+                cout << "Exchange rate could not be added.\n";
+            }
+
+        } else if(currency_choice == 4){
+            string base_currency, target_currency;
+            cout << "Please enter the base currency to remove: ";
+            cin >> base_currency;
+            cout << "Please enter the target currency to remove: ";
+            cin >> target_currency;
+
+            bool removed = currencyConverter.removeExchangeRate(base_currency, target_currency);
+if (removed) {
+cout << "Exchange rate removed successfully.\n";
+}
+else {
+cout << "Exchange rate could not be removed.\n";
+}
+
+    } else if(currency_choice == 5){
+        string base_currency, target_currency;
+        double new_exchange_rate;
+        cout << "Please enter the base currency to update: ";
+        cin >> base_currency;
+        cout << "Please enter the target currency to update: ";
+        cin >> target_currency;
+        cout << "Please enter the new exchange rate: ";
+        cin >> new_exchange_rate;
+
+        bool updated = currencyConverter.updateExchangeRate(base_currency, target_currency, new_exchange_rate);
+        if (updated) {
+            cout << "Exchange rate updated successfully.\n";
+        }
+        else {
+            cout << "Exchange rate could not be updated.\n";
+        }
+
+    } else if(currency_choice == 6){
+        break;
+    } else{
+        cout << "Invalid option. Please try again.\n";
+    }
+
+    // Wait for user input before clearing the console
+    cout << "\nPress any key to continue...";
+    cin.ignore();
+    cin.get();
+}
+
+}
+else if (choice == 4) {
+        // Exit the program
+        running = false;
+        cout << "Thank you for using the Inventory Management System.\n";
+    }
+    else {
+        // If the user enters an invalid choice, display an error message
+        cout << "Invalid choice. Please try again.\n";
+    }
+}
+
+// Save data to files before exiting
+loginManager.saveUsersToFile();
+inventoryManager.saveProductsToFile();
+customerManager.saveCustomersToFile();
+
+// Save the updated orders to file
+orderManager.saveOrdersToFile();
+
+return 0;
+}
+
